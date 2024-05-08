@@ -25,10 +25,6 @@ class Record(ABC):
         """Return an iterator over items in the record."""
 
     @abstractmethod
-    def items(self) -> Generator[Tuple[str, T], None, None]:
-        """Return an iterator of (ln_id, item) tuples in the record."""
-
-    @abstractmethod
     def get(self, item: LionIDable, /, default: Any = None) -> T:
         """
         Retrieve an item by identifier.

@@ -8,7 +8,7 @@ from pandas import DataFrame, Series
 from pydantic import BaseModel, Field, ValidationError, AliasChoices
 
 from lionagi.libs import ParseUtil, SysUtil
-from lionagi.libs.ln_convert import strip_lower, to_dict, to_str, to_df
+from lionagi.libs.ln_convert import strip_lower, to_dict, to_str
 from lionagi.libs.ln_func_call import lcall
 from lionagi.libs.ln_nested import nget, nset, ninsert, flatten, unflatten
 
@@ -231,7 +231,13 @@ class Component(BaseModel, ABC):
     @from_obj.register(DataFrame)
     @classmethod
     def _from_pd_dataframe(
-        cls, obj: DataFrame, /, *args, pd_kwargs: dict | None = None, include_index=False, **kwargs
+        cls,
+        obj: DataFrame,
+        /,
+        *args,
+        pd_kwargs: dict | None = None,
+        include_index=False,
+        **kwargs,
     ) -> list[T]:
         """Create a list of node instances from a Pandas DataFrame."""
         pd_kwargs = pd_kwargs or {}
@@ -470,7 +476,6 @@ class Component(BaseModel, ABC):
         dict_ = self.to_dict()
         dict_["class_name"] = self.class_name()
         return Series(dict_).__repr__()
-
 
     def __len__(self):
         return 1
