@@ -6,7 +6,7 @@ from pydantic import Field, field_validator
 from lionagi.libs.ln_convert import is_same_dtype, to_df
 from ..abc import Record, Component, LionIDable, get_lion_id
 from ..abc._exceptions import LionValueError, LionTypeError, ItemNotFoundError
-from .._util import _to_list_type
+from .._util import _to_list_type, _validate_order
 
 # Define a type variable for components bound to the Component type
 T = TypeVar("T", bound=Component)
@@ -36,7 +36,7 @@ class Pile(Component, Record, Generic[T]):
                 _key = self.order[key]
                 _key = [_key] if isinstance(key, int) else _key
                 _out = [self.pile.get(i) for i in _key]
-                return _out[0] if len(_out) == 1 else pile(_out)
+                return _out[0] if len(_out) == 1 else pile(_out, self.item_type, _key)
         except IndexError as e:
             raise ItemNotFoundError(key) from e
 
@@ -50,7 +50,7 @@ class Pile(Component, Record, Generic[T]):
         try:
             if len(keys) == 1:
                 return self.pile.get(keys[0])
-            return pile([self.pile.get(i) for i in keys])
+            return pile([self.pile.get(i) for i in keys], self.item_type, keys)
         except KeyError as e:
             raise ItemNotFoundError(key) from e
 
@@ -115,15 +115,14 @@ class Pile(Component, Record, Generic[T]):
         """
         key = _to_list_type(key)
         items = []
-
+        
         for i in key:
-            i = i if isinstance(i, str) else get_lion_id(i)
-
             if i not in self:
                 if default == ...:
-                    raise ItemNotFoundError(key)
+                    raise ItemNotFoundError(i)
                 return default
 
+        for i in key:
             _id = get_lion_id(i)
             items.append(self.pile.pop(_id))
             self.order.remove(_id)
@@ -142,7 +141,7 @@ class Pile(Component, Record, Generic[T]):
                 raise e
             return default
 
-    def update(self, other: any):
+    def update(self, other: Any):
         """
         Update the pile with another collection of items.
         This can include another pile or any iterable of items.
@@ -171,9 +170,11 @@ class Pile(Component, Record, Generic[T]):
         """
         Exclude items from the pile if present.
         Returns True if the item is successfully excluded; otherwise, False.
-        """
-        if item in self:
-            self.pop(item)
+        """ 
+        item = _to_list_type(item)
+        for i in item:
+            if item in self:
+                self.pop(i)
         return item not in self
 
     def is_homogenous(self) -> bool:
@@ -214,7 +215,10 @@ class Pile(Component, Record, Generic[T]):
         _copy = self.model_copy(deep=True)
         if other not in self:
             raise ItemNotFoundError(other)
-        _copy.exclude(other)
+        
+        length = len(_copy)
+        if not _copy.exclude(other) or len(_copy) == length:
+            raise LionValueError("Item cannot be excluded from the pile.")
         return _copy
 
     def __iadd__(self, other: T) -> "Pile":
@@ -223,8 +227,7 @@ class Pile(Component, Record, Generic[T]):
         Modifies the pile in-place by including the specified item.
         Returns the modified pile.
         """
-        self.include(other)
-        return self
+        return self + other
 
     def __isub__(self, other: LionIDable) -> "Pile":
         """
@@ -240,6 +243,14 @@ class Pile(Component, Record, Generic[T]):
     def size(self):
         """Return the total size of the pile."""
         return sum([len(i) for i in self])
+
+    def insert(self, index, item):
+        if not isinstance(index, int):
+            raise ValueError("Index must be an integer for pile insertion.")
+        item = self._validate_pile(item)
+        for k, v in item.items():
+            self.order.insert(index, k)
+            self.pile[k] = v
 
     def append(self, item: T):
         """
@@ -261,6 +272,10 @@ class Pile(Component, Record, Generic[T]):
     def items(self):
         yield from ((i, self.pile.get(i)) for i in self.order)
 
+    @field_validator("order", mode="before")
+    def _validate_order(cls, value):
+        return _validate_order(value)        
+        
     @field_validator("item_type", mode="before")
     def _validate_item_type(cls, value):
         """
@@ -331,12 +346,16 @@ class Pile(Component, Record, Generic[T]):
 
 
 def pile(
-    items: Iterable[T] | None = None, item_type: set[Type] | None = None
+    items: Iterable[T] | None = None, item_type: set[Type] | None = None, order=None,
 ) -> Pile[T]:
     """Create a new Pile instance."""
     if not items:
         return Pile(item_type=item_type) if item_type else Pile()
 
     a = Pile(pile=items, item_type=item_type)
-    a.order = list(a.pile.keys())
+    order = order or list(a.pile.keys())
+    if not len(order) == len(a):
+        raise ValueError("The length of the order does not match the length of the pile")
+    
+    a.order = order
     return a
