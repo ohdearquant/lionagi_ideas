@@ -98,14 +98,6 @@ class Actionable(ABC):
         """Invoke the action asynchronously with the given arguments."""
 
 
-class Workable(ABC):
-    """Represents an entity that can perform work with arguments."""
-
-    @abstractmethod
-    async def perform(self, /, *args: Any, **kwargs: Any) -> Any:
-        """Perform the work asynchronously with the given arguments."""
-
-
 class Rule(Condition, Actionable):
     """Combines a condition and an action that can be applied based on it."""
 
@@ -172,9 +164,8 @@ class Sendable(BaseModel, ABC):
         return a
 
 
-
 class Executable(ABC):
-    
+
     @abstractmethod
     async def execute(self, /, *args: Any, **kwargs: Any) -> Any:
         """Execute the object with the given arguments asynchronously."""

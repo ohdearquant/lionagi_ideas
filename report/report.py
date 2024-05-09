@@ -1,15 +1,14 @@
+import contextlib
 from typing import Any, Type
-from pydantic import Field
 
-# from lionagi import logging as _logging
-from lionagi.core.generic import BaseComponent
-from lionagi.experimental.report.form import Form
-from lionagi.experimental.report.util import get_input_output_fields
+from ..generic.abc import Component, Field
+from .form import Form
+from .util import get_input_output_fields
 
 
-class Report(BaseComponent):
+class Report(Component):
 
-    assignment: str = Field(..., examples=["input1, input2 -> output"])
+    assignment: str = Field(..., examples=["a, b -> h"])
 
     forms: dict[str, Form] = Field(
         default_factory=dict,
@@ -27,14 +26,16 @@ class Report(BaseComponent):
     )
 
     input_fields: list[str] = Field(default_factory=list)
-    output_fields: list[str] = Field(default_factory=list)
+    requested_fields: list[str] = Field(default_factory=list)
 
     def __init__(self, **kwargs):
         """
         at initialization, all relevant fields if not already provided, are set to None
         """
         super().__init__(**kwargs)
-        self.input_fields, self.output_fields = get_input_output_fields(self.assignment)
+        self.input_fields, self.requested_fields = get_input_output_fields(
+            self.assignment
+        )
 
         # if assignments is not provided, set it to assignment
         if self.form_assignments == []:
@@ -66,6 +67,18 @@ class Report(BaseComponent):
                         f.fill(**{k: getattr(self, k)})
 
     @property
+    def filled(self):
+        with contextlib.suppress(ValueError):
+            return self._is_filled()
+        return False
+
+    @property
+    def workable(self):
+        with contextlib.suppress(ValueError):
+            return self._is_workable()
+        return False
+
+    @property
     def work_fields(self) -> dict[str, Any]:
         """
         all work fields across all forms, including intermediate output fields,
@@ -78,6 +91,11 @@ class Report(BaseComponent):
                 if k not in all_fields:
                     all_fields[k] = v
         return all_fields
+
+    @property
+    def next_forms(self) -> list[Form] | None:
+        a = [i for i in self.forms.values() if i.workable]
+        return a if len(a) > 0 else None
 
     def fill(self, **kwargs):
         """
@@ -93,46 +111,38 @@ class Report(BaseComponent):
                 _kwargs = {k: v for k, v in kwargs.items() if k in form.work_fields}
                 form.fill(**_kwargs)
 
-    @property
-    def filled(self):
-        return all([value is not None for _, value in self.work_fields.items()])
+    def _is_filled(self):
+        for k, value in self.work_fields.items():
+            if value is None:
+                raise ValueError(f"Field {k} is not filled")
+        return True
 
-    @property
-    def workable(self) -> bool:
+    def _is_workable(self) -> bool:
 
         if self.filled:
-            # _logging.info("The report is already filled, no need to work on it.")
-            return False
+            raise ValueError("Form is already filled, cannot be worked on again")
 
         for i in self.input_fields:
             if not getattr(self, i, None):
-                # _logging.error(f"Field '{i}' is required to work on the report.")
-                return False
+                raise ValueError(f"Required field {i} is not provided")
 
         # this is the required fields from report's own assignment
         fields = self.input_fields
-        fields.extend(self.output_fields)
+        fields.extend(self.requested_fields)
 
         # if the report's own assignment is not in the forms, return False
         for f in fields:
             if f not in self.work_fields:
-                # _logging.error(f"Field {f} is a required deliverable, not found in work field.")
-                return False
+                raise ValueError(f"Field {f} is not in the forms")
 
         # get all the output fields from all the forms
         outs = []
         for form in self.forms.values():
-            outs.extend(form.output_fields)
+            outs.extend(form.requested_fields)
 
         # all output fields should be unique, not a single output field should be
         # calculated by more than one form
         if len(outs) != len(set(outs)):
-            # _logging.error("There are duplicate output fields in the forms.")
-            return False
+            raise ValueError("Output fields are not unique")
 
         return True
-
-    @property
-    def next_forms(self) -> list[Form] | None:
-        a = [i for i in self.forms.values() if i.workable]
-        return a if len(a) > 0 else None
