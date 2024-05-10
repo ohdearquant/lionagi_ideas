@@ -34,7 +34,6 @@ class Worker(ABC):
             _logging.error(f"Could not stop worklogs: {non_stopped_}")
         _logging.info(f"Stopped worker {self.name}")
 
-
     # TODO: Implement process method
 
     # async def process(self, refresh_time=1):
@@ -76,7 +75,7 @@ class Worker(ABC):
         return True
 
 
-def work(assignment, capacity=5):
+def work(assignment, capacity=10, guidance=None, retry_kwargs=None):
     def decorator(func):
         @wraps(func)
         async def wrapper(
@@ -85,8 +84,8 @@ def work(assignment, capacity=5):
             func=func,
             assignment=assignment,
             capacity=capacity,
-            retry_kwargs=None,
-            guidance=None,
+            retry_kwargs=retry_kwargs,
+            guidance=guidance,
             **kwargs,
         ):
             return await self._wrapper(

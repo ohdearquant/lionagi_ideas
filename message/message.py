@@ -1,8 +1,8 @@
 from enum import Enum
-
-from pydantic import Field
 from lionagi.libs.ln_convert import to_str
-from ..generic import Mail, Node
+
+from ..generic.abc import Sendable, Field
+from ..generic import Node
 
 
 # Enums for defining message fields and roles
@@ -30,7 +30,7 @@ class MessageRole(str, Enum):
 
 
 # Base class for messages
-class RoledMessage(Node, Mail):
+class RoledMessage(Node, Sendable):
     """
     A base class representing a message with validators and properties.
     """
@@ -64,7 +64,7 @@ class RoledMessage(Node, Mail):
                 f"Failed to convert {self.content} into a string value"
             ) from e
 
-        return {role: content_str}
+        return {"role": role, "content": content_str}
 
     def __str__(self):
         """
