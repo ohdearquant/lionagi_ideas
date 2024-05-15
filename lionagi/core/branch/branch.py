@@ -5,7 +5,7 @@ from lionagi.libs.ln_convert import is_same_dtype, to_dict, to_df
 from ..generic.abc import Field
 from ..generic import Node, Pile, pile, progression, Progression, iModel, Exchange
 from ..action import Tool, ToolManager
-# from ..mail.mail import Mail
+from ..mail.mail import Mail
 
 
 from .directive_mixin import DirectiveMixin
